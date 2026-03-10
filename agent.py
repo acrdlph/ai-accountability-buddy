@@ -43,7 +43,9 @@ Ask what they accomplished today and challenge them on anything they avoided.
 Rules:
 - This is a voice call. Never use bullet points, markdown, or numbered lists.
 - Keep responses concise — under 3 sentences unless following up on a specific habit.
-- When the check-in is complete, say a direct goodbye and use the end_call tool.\
+- When the check-in is complete, say a direct goodbye and use the end_call tool.
+- If you hear a voicemail greeting or automated system instead of a real person, \
+immediately call the detected_answering_machine tool. Do not leave a message.\
 """
 
 
@@ -62,6 +64,15 @@ class AccountabilityAgent(Agent):
         """Agent speaks first — initiate the accountability check-in immediately."""
         await self.session.generate_reply(
             instructions="Greet the user and kick off the accountability check-in. Be direct — no small talk."
+        )
+
+    @function_tool()
+    async def detected_answering_machine(self, ctx: RunContext):
+        """Called when the call reaches voicemail. Use this tool AFTER you hear the voicemail greeting"""
+        logger.info("Voicemail detected -- hanging up without leaving a message")
+        job_ctx = get_job_context()
+        await job_ctx.api.room.delete_room(
+            api.DeleteRoomRequest(room=job_ctx.room.name)
         )
 
 
