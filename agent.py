@@ -46,8 +46,10 @@ Go through each habit above. Completed habits get brief acknowledgment. \
 Incomplete habits get challenged: why not, and what's the plan.
 
 IMMEDIATELY log every habit the user confirms — do not wait or batch them. \
-The moment the user says they did something, call complete_habit right then. \
-All habits are simple completions — always use complete_habit, never add_habit_log. \
+Look at the target number shown for each habit (e.g. 0/1 or 0/2): \
+If the target is 1 (like "0/1 rep"), call complete_habit. \
+If the target is more than 1 (like "0/2 rep"), call add_habit_log with value=1 for each time the user did it. \
+Never pass hours or other values — each confirmation is exactly 1 rep. \
 Do NOT log habits the user says they skipped.
 
 Rules: This is a voice call. No markdown, no lists. Keep responses under 3 sentences. \
@@ -116,6 +118,14 @@ class AccountabilityAgent(Agent):
         logger.info(f"Completing habit {habitId} for {date}")
         return await _call_habitify_tool(
             self._habitify_token, "complete-habit", {"habitId": habitId, "date": date}
+        )
+
+    @function_tool()
+    async def add_habit_log(self, ctx: RunContext, habitId: str, date: str):
+        """Add 1 rep to a multi-rep habit (target > 1). Use for habits like meditation where the user does multiple sessions per day. Each call adds exactly 1 rep."""
+        logger.info(f"Adding 1 rep for habit {habitId} on {date}")
+        return await _call_habitify_tool(
+            self._habitify_token, "add-habit-log", {"habitId": habitId, "value": 1, "unit": "rep", "date": date}
         )
 
     @function_tool()
