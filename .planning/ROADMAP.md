@@ -46,12 +46,12 @@ Plans:
   3. If the call goes unanswered, the agent process exits cleanly (TwirpError caught, no crash)
   4. If voicemail picks up, the agent detects the greeting and hangs up without leaving a message
   5. Single hardcoded phone number is configurable via environment variable (extensible for future multi-user)
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 02-01: Configure Twilio Elastic SIP trunk with credential-list auth, register LiveKit outbound SIP trunk, set SIP_OUTBOUND_TRUNK_ID env var
-- [ ] 02-02: Implement create_sip_participant() in agent entrypoint with wait_until_answered=True and TwirpError handling for no-answer; implement detected_answering_machine tool
-- [ ] 02-03: End-to-end test — manual CLI dispatch rings phone, agent speaks first, no-answer path exits cleanly, voicemail path hangs up
+- [ ] 02-01-PLAN.md — Configure Twilio SIP trunk with credential-list auth, register LiveKit outbound SIP trunk, set env vars
+- [ ] 02-02-PLAN.md — Add SIP dialing, TwirpError handling, and voicemail detection to agent.py
+- [ ] 02-03-PLAN.md — End-to-end test: dispatch rings phone, agent speaks first, no-answer and voicemail paths work
 
 ### Phase 3: Habitify Integration
 **Goal**: The agent knows which habits are due today before the call starts and writes accurate completion results to Habitify during the conversation
