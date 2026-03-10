@@ -66,9 +66,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — Create Habitify REST client and pre-call reasoning LLM that fetches multi-day habits, analyzes patterns, and injects briefing into agent instructions
-- [ ] 03-02-PLAN.md — Implement log_habit function tool with simple/goal branching (PUT /status vs POST /logs) and fuzzy habit name matching
-- [ ] 03-03-PLAN.md — End-to-end verification: live call with real Habitify data, verify pre-call fetch, habit discussion, and write-back to Habitify
+- [ ] 03-01-PLAN.md — OAuth setup script + token refresh module for official Habitify MCP server
+- [ ] 03-02-PLAN.md — Pre-call reasoning agent loop (multi-day MCP analysis) + voice agent MCP write tools in agent.py
+- [ ] 03-03-PLAN.md — End-to-end verification: live call with real Habitify data, verify pre-call briefing, habit discussion, and write-back via MCP
 
 ### Phase 4: Scheduling and Retry
 **Goal**: The system calls autonomously at 7pm every day without any manual trigger, and retries once 30 minutes later if unanswered
