@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 2: Twilio SIP Telephony** - Agent calls a real phone number via Twilio Elastic SIP trunk
 - [ ] **Phase 3: Habitify Integration** - Agent fetches today's habits and writes completion results back to Habitify
 - [ ] **Phase 4: Scheduling and Retry** - System calls autonomously at 7pm daily and retries once on no-answer
-- [ ] **Phase 5: Deployment and Hardening** - Single Docker container running on Fly.io with structured logging and auto-restart
+- [ ] **Phase 5: Deployment and Hardening** - Deploy to LiveKit Cloud with structured logging and auto-restart
 
 ## Phase Details
 
@@ -89,21 +89,21 @@ Plans:
 - [ ] 04-03: Validation — run scheduler for two consecutive trigger windows, confirm correct retry behavior on no-answer and no retry on answer
 
 ### Phase 5: Deployment and Hardening
-**Goal**: A single Docker container runs on Fly.io unattended, calls daily, restarts automatically on crash, and produces logs for post-hoc review
+**Goal**: Agent deployed to LiveKit Cloud, runs unattended daily, restarts on crash, and produces logs for review
 **Depends on**: Phase 4
 **Requirements**: NFR3, NFR5
 **Success Criteria** (what must be TRUE):
-  1. `docker build` produces a working image; `fly deploy` pushes it to Fly.io without errors
-  2. The system makes its daily call from Fly.io without any local machine running
-  3. If the container crashes mid-session, Fly.io restarts it automatically and the next day's call proceeds normally
+  1. Agent is deployed to LiveKit Cloud and runs without any local machine
+  2. The system makes its daily call from LiveKit Cloud autonomously
+  3. If the agent crashes, LiveKit Cloud restarts it automatically and the next day's call proceeds normally
   4. Each call produces a structured log entry with timestamp, habits discussed, and call outcome (answered/voicemail/no-answer)
-  5. Total monthly cost stays within LiveKit Cloud free tier plus minimal Twilio and OpenAI charges
+  5. Total monthly cost stays within LiveKit Cloud free tier (1,000 agent min/month) plus minimal Twilio and OpenAI charges
 **Plans**: TBD
 
 Plans:
-- [ ] 05-01: Write Dockerfile (Python 3.11-slim, uv, single entrypoint); configure fly.toml with terminationGracePeriodSeconds=900 and auto-restart; set all secrets via fly secrets set
-- [ ] 05-02: Add structured JSON logging to stdout (timestamp, call outcome, habit results); optionally write per-call summary to SQLite for review
-- [ ] 05-03: Production validation — deploy to Fly.io, confirm autonomous daily call fires, confirm auto-restart on simulated crash, verify logs are queryable
+- [ ] 05-01: Write Dockerfile (Python 3.11-slim, uv, single entrypoint); configure for LiveKit Cloud agent deployment; set all secrets via LiveKit Cloud dashboard
+- [ ] 05-02: Add structured JSON logging to stdout (timestamp, call outcome, habit results); optionally write per-call summary for review
+- [ ] 05-03: Production validation — deploy to LiveKit Cloud, confirm autonomous daily call fires, confirm auto-restart on crash, verify logs
 
 ## Progress
 

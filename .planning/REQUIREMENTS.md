@@ -80,7 +80,7 @@ Stay within LiveKit Cloud free tier (~1,000 agent min/month). Twilio and OpenAI 
 | Telephony | Twilio Elastic SIP Trunk | User-specified; credential-list auth (not IP) |
 | Habit data | Habitify REST API | Simpler than MCP OAuth; API key auth |
 | Scheduling | APScheduler (embedded) | No external cron dependency |
-| Deployment | Docker → Fly.io or LiveKit Cloud | Single container, minimal ops |
+| Deployment | LiveKit Cloud | Free tier (1,000 agent min/month), zero ops |
 
 ---
 
