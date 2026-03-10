@@ -14,7 +14,23 @@ The Habitify REST API is straightforward -- API key auth via `Authorization` hea
 
 On the LiveKit side, the pattern is well-established: parse `ctx.job.metadata` in the entrypoint, construct the agent with dynamic instructions that include the habit list, and set `max_tool_steps` on `AgentSession` to accommodate one tool call per habit plus overhead. The survey caller recipe demonstrates this exact metadata-to-instructions pattern. The existing `agent.py` already parses metadata for phone numbers -- extending it to include habit data is a natural evolution. The `aiohttp` library is already a transitive dependency of `livekit-agents`, so no new HTTP client package is needed for API calls.
 
-**Primary recommendation:** Fetch habits via `GET /journal?target_date=<today>` in the entrypoint before creating `AccountabilityAgent`, pass the habit list into the agent constructor, format it into the system prompt instructions. Implement `log_habit` as a `@function_tool` that branches on whether the habit has a goal: `PUT /status/:id` with `{"status":"completed"}` for simple habits, `POST /logs/:id` with `{"value":N, "unit_type":"...", "target_date":"..."}` for goal-based habits. Set `max_tool_steps` to at least 7 (5 habits + 2 overhead) on `AgentSession`.
+**Primary recommendation — Two-Stage Pre-Call Architecture (USER DECISION):**
+
+The user explicitly requested a **pre-call reasoning LLM** instead of a simple API fetch. The architecture is:
+
+1. **Stage 1: Pre-call reasoning LLM** — Before the voice call starts, spawn a lightweight LLM call (e.g., GPT-4o-mini or similar) that:
+   - Calls the Habitify Journal API for **today AND the last few days** (not just today)
+   - Reasons through the habit data: what's due today, what's overdue, streaks broken, patterns of slacking
+   - Produces a **structured briefing** — a summary of the user's habit situation with talking points
+   - This is NOT a simple fetch-and-format — it's an LLM that uses tools to gather data and then reasons about what's important to discuss
+
+2. **Stage 2: Voice agent** — Receives the briefing as injected context in its system prompt. Knows exactly what to ask about, what to push on (e.g., "you've skipped meditation 3 days in a row"), what to celebrate. Does NOT need to call Habitify read APIs itself.
+
+3. **Write side stays on voice agent** — The `log_habit` function tool remains on the voice agent for real-time habit completion during the conversation.
+
+This replaces the simpler "fetch in entrypoint, format into prompt" pattern. The pre-call LLM adds intelligence — it can identify patterns, prioritize what to discuss, and produce natural-language context rather than a raw habit list.
+
+**Implementation approach:** Use the OpenAI chat completions API (already available via `openai` package) for the pre-call reasoning step. Give it the Habitify API as tools (function calling). Run it in the entrypoint before creating the voice agent. Pass its output as part of the `AccountabilityAgent` instructions.
 
 ---
 
