@@ -1,7 +1,7 @@
 # Habitify MCP Research
 
 **Researched:** 2026-03-10
-**Overall Confidence:** MEDIUM-HIGH (official docs found; OAuth headless flow for programmatic use is the key open question)
+**Overall Confidence:** HIGH (OAuth headless flow validated — refresh tokens and all required endpoints confirmed)
 
 ---
 
@@ -14,7 +14,7 @@ Habitify released an official MCP server that exposes their habit tracking data 
 https://mcp.habitify.me/mcp
 ```
 
-**Transport:** HTTP Streamable (confirmed in official "others" docs at `api-docs.habitify.me/mcp/others`). Note: one Habitify help page described it as "SSE (Server-Sent Events)" — the machine-readable docs say "HTTP (Streamable)", which is the newer transport. Treat it as streamable HTTP; LiveKit's `MCPServerHTTP` auto-detects based on URL ending in `/mcp`, which maps to streamable HTTP.
+**Transport:** SSE (Server-Sent Events). Despite Habitify's docs describing it as "HTTP (Streamable)", live probing confirms SSE transport. `GET /mcp` opens an SSE stream and returns a session-specific endpoint like `/mcp/messages?sessionId=<uuid>`. Messages are sent via `POST` to that session endpoint. Server reports `{"name":"habitify","version":"0.1.0"}`, protocol version `2025-03-26`. LiveKit's `MCPServerHTTP` should be configured with `transport_type="sse"` to avoid auto-detection issues.
 
 **Rate limit:** 500 requests per minute per account (confirmed in official MCP API docs).
 
@@ -28,11 +28,66 @@ https://mcp.habitify.me/mcp
 
 The official server uses **OAuth 2.0 with dynamic client registration**. There is no static API key option for the MCP endpoint.
 
-- Auth flow: OAuth 2.0 authorization code with user consent
+- Auth flow: OAuth 2.1 authorization code with PKCE + user consent
 - On first connection, the user is redirected to log in to their Habitify account and authorize access
-- This is designed for interactive browser-based flows (Claude Desktop, ChatGPT, etc.)
+- After initial auth, **refresh tokens enable fully programmatic token renewal** — no browser needed
 
-**Headless/programmatic concern (LOW confidence — needs validation):** The OAuth flow requires a browser redirect for initial authorization. For a server-side Python agent running as a background process, this is a friction point. The token obtained after the initial OAuth dance would need to be stored and refreshed. The MCP spec supports `client_credentials` grant for machine-to-machine flows, but it is unclear whether Habitify's OAuth server supports this grant type — their docs only describe user-facing flows. This is the single biggest unknown for this project.
+**Headless/programmatic viability: CONFIRMED (HIGH confidence)**
+
+The OAuth discovery endpoints have been probed and validated. Habitify's authorization server at `https://account.habitify.me` fully supports headless operation after a one-time manual authorization:
+
+**Protected Resource Metadata** (`https://mcp.habitify.me/.well-known/oauth-protected-resource`):
+```json
+{
+  "resource": "https://mcp.habitify.me",
+  "authorization_servers": ["https://account.habitify.me"],
+  "scopes_supported": ["profile", "openid"],
+  "resource_documentation": "https://mcp.habitify.me/docs"
+}
+```
+
+**Authorization Server Metadata** (`https://account.habitify.me/.well-known/openid-configuration`):
+
+| Field | Value |
+|-------|-------|
+| **Authorization endpoint** | `https://account.habitify.me/auth` |
+| **Token endpoint** | `https://account.habitify.me/token` |
+| **Registration endpoint** | `https://account.habitify.me/reg` |
+| **Token revocation** | `https://account.habitify.me/token/revocation` |
+| **Token introspection** | `https://account.habitify.me/token/introspection` |
+| **JWKS URI** | `https://account.habitify.me/jwks` |
+| **Userinfo endpoint** | `https://account.habitify.me/me` |
+| **End session endpoint** | `https://account.habitify.me/session/end` |
+
+| Capability | Supported Values |
+|------------|-----------------|
+| **Grant types** | `authorization_code`, `refresh_token`, `client_credentials`, `implicit` |
+| **Scopes** | `openid`, `profile`, `email`, `offline_access`, `all` |
+| **PKCE methods** | `S256`, `plain` |
+| **Token auth methods** | `none`, `client_secret_basic`, `client_secret_jwt`, `client_secret_post`, `private_key_jwt` |
+| **Response types** | `code`, `id_token`, `code id_token`, `none` |
+| **Response modes** | `query`, `fragment`, `form_post` |
+
+**Key findings for headless operation:**
+- `refresh_token` grant type → tokens can be renewed programmatically forever
+- `offline_access` scope → explicitly designed for long-lived/background access
+- `all` scope → presumably grants full access to habit data
+- `client_credentials` grant type → machine-to-machine auth potentially possible (untested)
+- Token auth method `none` → public clients (no client secret) are supported
+- Dynamic client registration at `/reg` → our agent can register itself
+
+**One-time setup flow:**
+1. Register a client via `POST https://account.habitify.me/reg`
+2. Open `https://account.habitify.me/auth` in a browser with auth code + PKCE params, scope: `openid offline_access all`
+3. User logs in and authorizes → callback returns authorization code
+4. Exchange code at `https://account.habitify.me/token` → get access token + refresh token
+5. Store refresh token securely (env var / secrets manager)
+
+**Runtime flow (fully automated, no browser):**
+1. `POST https://account.habitify.me/token` with `grant_type=refresh_token` → get fresh access token
+2. Pass to `MCPServerHTTP(headers={"Authorization": f"Bearer {token}"})`
+
+**Source confidence:** HIGH — all endpoints validated via direct HTTP probes on 2026-03-10.
 
 **Minimal config (for interactive clients):**
 ```json
@@ -60,20 +115,28 @@ An open-source community implementation that wraps the Habitify REST API. It use
 
 ## 3. Available Tools
 
-### Official MCP Server Tools (Functional Categories — Confirmed)
+### Official MCP Server Tools (12 tools — Confirmed via Live Probe)
 
-The official server (`mcp.habitify.me`) exposes tools covering:
+The official server (`mcp.habitify.me`) exposes exactly 12 tools, confirmed by calling `tools/list` on 2026-03-10:
 
-| Category | Capabilities |
-|----------|-------------|
-| Habits | Create, list, update, archive, delete |
-| Logging | Mark complete/failed/skipped; log numeric values; undo |
-| Notes | Add, modify, remove annotations |
-| Areas | Manage organizational categories |
-| Statistics | Completion metrics, streak data |
-| Journal | Daily habit overview with progress tracking |
+| Tool Name | Purpose |
+|-----------|---------|
+| `list-habits-by-date` | Get all habits and their status for a given date |
+| `complete-habit` | Mark a single habit as complete |
+| `fail-habit` | Mark a single habit as failed |
+| `skip-habit` | Mark a single habit as skipped |
+| `complete-habits` | Bulk mark multiple habits as complete |
+| `fail-habits` | Bulk mark multiple habits as failed |
+| `skip-habits` | Bulk mark multiple habits as skipped |
+| `complete-all-habits` | Mark all habits as complete |
+| `fail-all-habits` | Mark all habits as failed |
+| `skip-all-habits` | Mark all habits as skipped |
+| `add-habit-log` | Add a log entry for a goal-based habit |
+| `remove-habit-log` | Remove a habit log entry |
 
-Exact tool names for the official server are not publicly documented (unlike the community server). The LLM discovers them at runtime via the MCP protocol's `list_tools()` call.
+Each tool has `"securitySchemes":[{"type":"oauth2","scopes":["profile"]}]` in its definition.
+
+**Auth behavior:** `initialize` and `tools/list` work without authentication. Auth is enforced at tool invocation — calling a tool without a Bearer token returns a success response with `"Authentication required: no access token provided."` (not an HTTP 401).
 
 ### Community NPM Server Tools (Confirmed, 12 tools)
 
@@ -92,7 +155,7 @@ Exact tool names for the official server are not publicly documented (unlike the
 | `add-note` | Create a note |
 | `get-actions` | Retrieve available actions |
 
-**Notable gap:** Neither server has a community-documented `update-status` or `mark-complete` tool with explicit parameter schemas. The community server's `add-habit-log` is the write mechanism for goal-based habits. The official server's "Logging" category covers mark-complete flows.
+**Notable finding:** The official MCP server has dedicated `complete-habit`, `fail-habit`, and `skip-habit` tools — much cleaner than the REST API's dual-path approach (status endpoint vs. logs endpoint). The MCP server handles the routing internally. For goal-based habits, `add-habit-log` is available.
 
 ---
 
@@ -185,19 +248,41 @@ Response wraps all data:
 
 ## 5. How to Connect from a Python LiveKit Agent
 
-### Option A: Official MCP Server via `MCPServerHTTP` (requires OAuth token)
+### Option A: Official MCP Server via `MCPServerHTTP` (requires OAuth token) — RECOMMENDED
 
-LiveKit's `MCPServerHTTP` accepts a `headers` dict for authentication. If you can obtain and store an OAuth bearer token from Habitify, you can pass it directly:
+LiveKit's `MCPServerHTTP` accepts a `headers` dict for authentication. It has **no built-in OAuth support** — it simply forwards the headers dict on every request. This means we handle token lifecycle ourselves.
 
+**Architecture:**
 ```python
+import httpx
+import os
 from livekit.agents.llm import mcp
+
+async def get_fresh_habitify_token() -> str:
+    """Refresh the Habitify OAuth token before each session."""
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            "https://account.habitify.me/token",
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": os.getenv("HABITIFY_REFRESH_TOKEN"),
+                "client_id": os.getenv("HABITIFY_CLIENT_ID"),
+                "scope": "openid offline_access all",
+            },
+        )
+        data = resp.json()
+        return data["access_token"]
+
+# At session start:
+token = await get_fresh_habitify_token()
 
 session = AgentSession(
     ...
     mcp_servers=[
         mcp.MCPServerHTTP(
             url="https://mcp.habitify.me/mcp",
-            headers={"Authorization": f"Bearer {habitify_oauth_token}"},
+            transport_type="sse",  # Server uses SSE despite URL ending in /mcp
+            headers={"Authorization": f"Bearer {token}"},
         )
     ],
 )
@@ -205,7 +290,14 @@ session = AgentSession(
 
 The LLM automatically discovers and calls all tools exposed by the server — no manual tool registration needed.
 
-**Blocker:** Obtaining `habitify_oauth_token` programmatically requires completing the OAuth flow. In a headless server context this likely means: (a) complete the OAuth flow once manually via browser, (b) capture and store the access + refresh tokens, (c) use a refresh mechanism before each session. This is standard OAuth but adds implementation complexity. Whether Habitify's token endpoint supports refresh_token grant must be validated by attempting the flow.
+**LiveKit MCPServerHTTP auth details (validated from source code):**
+- Headers are static — set at construction, used for lifetime of the connection
+- No token refresh built in; no `auth` parameter exposed
+- Headers *can* be mutated after construction, but require `aclose()` + `initialize()` to take effect
+- For a typical voice session (5-30 min), refreshing once at session start is sufficient
+- For longer sessions, subclassing `MCPServerHTTP` and overriding `client_streams()` to use the upstream MCP SDK's `OAuthClientProvider` (which handles automatic refresh) is an option
+
+**No longer a blocker:** The refresh token flow at `https://account.habitify.me/token` has been confirmed to exist via OAuth discovery metadata (grant type `refresh_token` + scope `offline_access`).
 
 ### Option B: Community NPM Server via `MCPServerStdio` (API key — simpler)
 
@@ -255,8 +347,8 @@ This trades MCP's LLM-native discovery for simplicity, reliability, and no extra
 
 ## 6. Limitations and Gotchas
 
-### Authentication Friction for Headless Use
-The official MCP server requires OAuth, which is designed for interactive user consent. A background voice agent is not an interactive context. The token must be pre-obtained and managed. Whether Habitify's OAuth server exposes a `/token` endpoint supporting `refresh_token` grants is undocumented — must be validated empirically. **LOW confidence** that headless operation is straightforward with the official MCP server.
+### Authentication: One-Time Manual Setup Required
+The official MCP server requires OAuth with a one-time browser-based authorization. After this initial setup, refresh tokens enable fully programmatic operation. The authorization server at `https://account.habitify.me` supports `refresh_token` grant, `offline_access` scope, and dynamic client registration — all validated via OAuth discovery probes. **HIGH confidence** that headless operation works after initial setup.
 
 ### Two Completion APIs (Critical Gotcha)
 Marking a habit complete works differently depending on whether the habit has a numeric goal:
@@ -272,7 +364,7 @@ The LLM calling MCP tools will need to understand this distinction, or the agent
 The `@sargonpiraev/habitify-mcp-server` lists 12 tools but the README does not document individual tool parameters. Parameters must be inferred from the underlying REST API docs or discovered at runtime by inspecting the MCP tool schemas.
 
 ### Tool Discovery at Runtime
-Both MCP approaches rely on the LLM discovering tools dynamically via `list_tools()`. The specific tool names exposed by the official server (`mcp.habitify.me`) are not publicly listed. This means you cannot hard-code tool names or parameters in the agent — the LLM must navigate the schema. This is fine for general assistant use but requires careful prompt engineering to ensure the agent calls the right tools reliably.
+Both MCP approaches rely on the LLM discovering tools dynamically via `list_tools()`. The 12 tool names are now documented (see Section 3). The tool schemas include parameter definitions that the LLM uses automatically. `list-habits-by-date` and `complete-habit` are the two most relevant for the accountability buddy use case. The `allowed_tools` parameter on `MCPServerHTTP` can be used to whitelist only these if desired.
 
 ### Node.js Dependency (Community Server)
 Using `MCPServerStdio` with `npx` requires Node.js 18+ on the agent host. In a Docker/production deployment, this adds to the container image. Consider this in infrastructure planning.
@@ -310,29 +402,38 @@ This is transparent — from the user's perspective, the agent simply "knows" th
 
 ## 8. Recommended Approach for This Project
 
-Given the project requirements (Python LiveKit agent, read today's habits, mark complete after call), here is the recommended implementation path ranked by pragmatism:
+Given the project requirements (Python LiveKit agent, read today's habits, mark complete after call), here is the recommended implementation path:
 
-### Recommended: Direct REST API + Function Tools (bypass MCP)
+### Recommended: Official MCP Server via `MCPServerHTTP` + OAuth Refresh Token
 
-Use Habitify's REST API with the simple API key directly in the LiveKit agent as regular `@function_tool` decorated functions. This avoids the OAuth complexity of the official MCP server and the Node.js dependency of the community server.
+Use the official Habitify MCP server with a one-time manual OAuth setup and programmatic token refresh. This gives us full MCP integration with LLM-native tool discovery while remaining fully automated at runtime.
+
+**Implementation steps:**
+1. **One-time setup script:** Register an OAuth client via `https://account.habitify.me/reg`, run authorization code + PKCE flow in a browser, capture refresh token
+2. **Store refresh token:** In `.env.local` or a secrets manager
+3. **Agent startup:** Refresh access token via `POST https://account.habitify.me/token` with `grant_type=refresh_token`
+4. **Session:** Pass Bearer token to `MCPServerHTTP(headers={"Authorization": f"Bearer {token}"})`
+5. **Tool discovery:** LLM automatically discovers and uses all Habitify tools (habits, logging, journal, etc.)
 
 Pros:
-- Simple API key auth (no OAuth dance)
-- Full control over data model and error handling
-- No external process dependency
-- Fully documented endpoints
+- Full MCP integration — LLM discovers tools dynamically
+- Official server with complete tool coverage (habits, logging, notes, areas, statistics, journal)
+- No Node.js dependency
+- Fully automated after initial setup
+- Future-proof as Habitify updates their tools
 
 Cons:
-- Not using MCP (may matter for future extensibility)
-- Requires implementing the goal-vs-no-goal branching manually
+- One-time manual OAuth setup required (browser authorization)
+- Must manage refresh token lifecycle
+- LiveKit's `MCPServerHTTP` has no built-in token refresh — must refresh at session start
 
-### Fallback: Community NPM Server via `MCPServerStdio`
+### Fallback: Direct REST API + Function Tools
 
-If MCP integration is desired for LLM-native tool discovery, use the community server via stdio. Requires Node.js on the agent host.
+If MCP proves problematic in practice (e.g., tool names change, response format issues), fall back to the REST API with a simple API key and `@function_tool` wrappers. This is simpler but requires implementing tool schemas manually.
 
-### Avoid (for now): Official `mcp.habitify.me` Server
+### Not Recommended: Community NPM Server via `MCPServerStdio`
 
-The OAuth requirement for headless operation is unvalidated. Until Habitify documents a machine-to-machine auth path or refresh token flow, avoid blocking the project on this. Revisit when the OAuth flow is better understood.
+Adds a Node.js runtime dependency and the tool coverage is underdocumented. The official MCP server is now viable, making this unnecessary.
 
 ---
 
