@@ -47,9 +47,9 @@ Incomplete habits get challenged: why not, and what's the plan.
 
 IMMEDIATELY log every habit the user confirms — do not wait or batch them. \
 The moment the user says they did something, call the tool right then. \
-For simple completion, call complete_habit with habitId and date. \
-For partial or numeric progress (e.g. "I did 1 meditation" out of 2, or "4.5 hours coding"), \
-call add_habit_log with habitId, value, and date. \
+Use complete_habit for almost everything — it marks today's habit as done. \
+Only use add_habit_log if the habit briefing explicitly says it needs a numeric value AND the unit is not "rep". \
+Most habits are simple daily/weekly completions — just call complete_habit. \
 Do NOT log habits the user says they skipped.
 
 Rules: This is a voice call. No markdown, no lists. Keep responses under 3 sentences. \
