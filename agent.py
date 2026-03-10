@@ -1,16 +1,22 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import os
 
 from dotenv import load_dotenv
+from livekit import api
 from livekit.agents import (
     Agent,
     AgentSession,
     JobContext,
     RoomInputOptions,
+    RunContext,
     cli,
     WorkerOptions,
+    function_tool,
+    get_job_context,
 )
 from livekit.agents.beta.tools import EndCallTool
 from livekit.plugins import openai, noise_cancellation
@@ -19,6 +25,9 @@ load_dotenv(dotenv_path=".env.local")
 
 logger = logging.getLogger("accountability-buddy")
 logger.setLevel(logging.INFO)
+
+outbound_trunk_id = os.getenv("SIP_OUTBOUND_TRUNK_ID")
+default_phone = os.getenv("DEFAULT_PHONE_NUMBER")
 
 SYSTEM_PROMPT = """\
 You are an accountability coach calling for an evening habit check-in. \
@@ -59,11 +68,19 @@ class AccountabilityAgent(Agent):
 async def entrypoint(ctx: JobContext) -> None:
     await ctx.connect()
 
+    # Parse phone number from dispatch metadata, fall back to env var
+    metadata = json.loads(ctx.job.metadata or "{}")
+    phone_number = metadata.get("phone") or metadata.get("phone_number") or default_phone
+    if not phone_number:
+        logger.error("No phone number provided in metadata or DEFAULT_PHONE_NUMBER env var")
+        ctx.shutdown()
+        return
+
     session = AgentSession(
         llm=openai.realtime.RealtimeModel(voice="shimmer"),
     )
 
-    # Start session in background — preserves Phase 2 SIP insertion point
+    # 1. Start session in background -- agent ready before call connects
     session_started = asyncio.create_task(
         session.start(
             agent=AccountabilityAgent(),
@@ -74,9 +91,30 @@ async def entrypoint(ctx: JobContext) -> None:
         )
     )
 
-    # Phase 2: SIP participant creation (create_sip_participant) goes here
+    # 2. Dial the phone -- blocks until answered or fails
+    try:
+        await ctx.api.sip.create_sip_participant(
+            api.CreateSIPParticipantRequest(
+                room_name=ctx.room.name,
+                sip_trunk_id=outbound_trunk_id,
+                sip_call_to=phone_number,
+                participant_identity=phone_number,
+                wait_until_answered=True,
+            )
+        )
+    except api.TwirpError as e:
+        logger.error(
+            f"SIP call failed: {e.message}, "
+            f"SIP status: {e.metadata.get('sip_status_code')} "
+            f"{e.metadata.get('sip_status')}"
+        )
+        ctx.shutdown()
+        return
 
+    # 3. Wait for session and participant
     await session_started
+    participant = await ctx.wait_for_participant(identity=phone_number)
+    logger.info(f"Participant joined: {participant.identity}")
 
 
 if __name__ == "__main__":
