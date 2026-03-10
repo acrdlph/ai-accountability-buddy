@@ -158,10 +158,18 @@ async def _run_briefing_loop(access_token: str) -> str:
                 iterations += 1
 
             # Extract final text from response output
-            briefing = "\n".join(
-                item.text for item in response.output
-                if hasattr(item, "text") and item.type == "output_text"
-            )
+            # The Responses API may return text as:
+            #   1. Top-level output_text items (item.type == "output_text", item.text)
+            #   2. Nested inside message items (item.type == "message", item.content[].type == "output_text")
+            text_parts: list[str] = []
+            for item in response.output:
+                if hasattr(item, "text") and item.type == "output_text":
+                    text_parts.append(item.text)
+                elif item.type == "message" and hasattr(item, "content"):
+                    for content_item in item.content:
+                        if hasattr(content_item, "text") and content_item.type == "output_text":
+                            text_parts.append(content_item.text)
+            briefing = "\n".join(text_parts)
 
             logger.info(
                 f"Briefing generated: {len(briefing)} chars, "
