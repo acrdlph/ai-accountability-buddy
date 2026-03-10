@@ -4,6 +4,8 @@ import asyncio
 import json
 import logging
 import os
+from datetime import datetime
+from pathlib import Path
 
 from dotenv import load_dotenv
 from livekit import api
@@ -44,9 +46,12 @@ why didn't you do it, and what's the plan to fix it.
 You're calling to check in on the user's day and hold them accountable. \
 Reference the habit briefing to discuss specific habits, patterns, and streaks.
 
-When the user confirms completing a habit, use the complete-habit tool to record it. \
-For goal-based habits with numeric targets, ask for the value and use add-habit-log. \
-Do not log habits the user says they skipped or didn't do.
+When the user confirms completing a habit, use the complete-habit tool with the habit ID \
+and today's date from the briefing to record it. The briefing includes habit IDs as UUIDs \
+in parentheses like "(id: FE112B42-...)" and the date in YYYY-MM-DD format. \
+Both habitId and date are required parameters for complete-habit. \
+For goal-based habits with numeric targets, ask for the value and use add-habit-log \
+with the habitId and value. Do not log habits the user says they skipped or didn't do.
 
 Rules:
 - This is a voice call. Never use bullet points, markdown, or numbered lists.
@@ -67,8 +72,8 @@ class AccountabilityAgent(Agent):
         if briefing:
             instructions += f"\n\n## Today's Habit Briefing\n\n{briefing}"
             instructions += "\n\nUse this briefing to guide the conversation. Reference specific patterns and streaks."
-            instructions += "\nWhen the user confirms a habit is done, use the complete-habit or add-habit-log tool from the connected Habitify service to record it."
-            instructions += "\nFor goal-based habits (with numeric targets), ask for the specific number and use add-habit-log."
+            instructions += "\nWhen the user confirms a habit is done, use the complete-habit tool with the habit ID from the briefing to record it."
+            instructions += "\nFor goal-based habits (with numeric targets), ask for the specific number and use add-habit-log with the habit ID."
             instructions += "\nDo NOT mark habits the user says they skipped — leave them as-is."
         super().__init__(
             instructions=instructions,
@@ -89,6 +94,33 @@ class AccountabilityAgent(Agent):
         await job_ctx.api.room.delete_room(
             api.DeleteRoomRequest(room=job_ctx.room.name)
         )
+
+
+async def _save_conversation_log(session: AgentSession, room_name: str) -> None:
+    """Save conversation history to a log file after the session ends."""
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filepath = log_dir / f"conversation_{room_name}_{timestamp}.json"
+
+    history = []
+    for item in session.history:
+        entry = {"role": item.role, "type": item.type}
+        if hasattr(item, "text") and item.text:
+            entry["text"] = item.text
+        if hasattr(item, "tool_calls") and item.tool_calls:
+            entry["tool_calls"] = [
+                {"name": tc.name, "arguments": tc.arguments}
+                for tc in item.tool_calls
+            ]
+        if hasattr(item, "tool_call_id") and item.tool_call_id:
+            entry["tool_call_id"] = item.tool_call_id
+            if hasattr(item, "content") and item.content:
+                entry["content"] = item.content
+        history.append(entry)
+
+    filepath.write_text(json.dumps(history, indent=2, default=str))
+    logger.info(f"Conversation log saved to {filepath}")
 
 
 async def entrypoint(ctx: JobContext) -> None:
@@ -127,6 +159,11 @@ async def entrypoint(ctx: JobContext) -> None:
         mcp_servers=[habitify_mcp] if habitify_mcp else [],
         max_tool_steps=10,
     )
+
+    # Log conversation when session ends
+    @session.on("close")
+    async def _on_session_close(*args):
+        await _save_conversation_log(session, ctx.room.name)
 
     # 1. Start session in background -- agent ready before call connects
     session_started = asyncio.create_task(
