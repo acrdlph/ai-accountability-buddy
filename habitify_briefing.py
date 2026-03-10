@@ -96,35 +96,85 @@ async def generate_briefing(access_token: str) -> str:
         return "Could not connect to Habitify. Proceed with a general check-in."
 
 
-def _append_habit_ids(trace: list[dict], briefing: str) -> str:
-    """Extract habit IDs from raw MCP data and append as a structured reference.
+def _build_structured_briefing(trace: list[dict], llm_analysis: str) -> str:
+    """Build a concise, structured briefing from raw MCP data.
 
-    The LLM tends to strip IDs from its output, so we extract them directly
-    from the MCP tool call results and append them to the briefing.
+    The realtime voice model hallucinates habits when given long LLM narratives,
+    so we build the habit list deterministically from MCP data and only use the
+    LLM analysis for a short pattern summary.
     """
     import re
 
-    habits: dict[str, str] = {}  # name -> id
     today_date = date.today().isoformat()
 
+    # Parse today's habits from the first tool call for today's date
+    habits: list[dict] = []  # [{name, id, status_line}]
+    seen_ids: set[str] = set()
+
     for entry in trace:
-        if entry.get("tool") == "list-habits-by-date":
+        if entry.get("tool") == "list-habits-by-date" and entry.get("arguments", {}).get("date") == today_date:
             raw = entry.get("result", "")
-            # Parse lines like: "  [ ] Complete Meditation (id: FE112B42-CE1D-4158-A17C-C250EC74FCA2): 0/2 rep"
-            for match in re.finditer(r"(?:[\[x \-\]]+)\s*(.+?)\s*\(id:\s*([A-F0-9-]+)\)", raw):
-                name, habit_id = match.group(1).strip(), match.group(2)
-                if name not in habits:
-                    habits[name] = habit_id
+            for match in re.finditer(
+                r"([\[x \-\]]+)\s*(.+?)\s*\(id:\s*([A-F0-9-]+)\):\s*(.+)",
+                raw,
+            ):
+                status_marker, name, habit_id, progress = (
+                    match.group(1).strip(),
+                    match.group(2).strip(),
+                    match.group(3),
+                    match.group(4).strip(),
+                )
+                if habit_id not in seen_ids:
+                    seen_ids.add(habit_id)
+                    done = "x" in status_marker
+                    habits.append({
+                        "name": name,
+                        "id": habit_id,
+                        "progress": progress,
+                        "done": done,
+                    })
 
     if not habits:
-        return briefing
+        # Fallback: try to extract from any tool call
+        for entry in trace:
+            if entry.get("tool") == "list-habits-by-date":
+                raw = entry.get("result", "")
+                for match in re.finditer(
+                    r"([\[x \-\]]+)\s*(.+?)\s*\(id:\s*([A-F0-9-]+)\)",
+                    raw,
+                ):
+                    _, name, habit_id = match.group(1).strip(), match.group(2).strip(), match.group(3)
+                    if habit_id not in seen_ids:
+                        seen_ids.add(habit_id)
+                        habits.append({"name": name, "id": habit_id, "progress": "", "done": False})
 
-    id_ref = f"\n\nHABIT ID REFERENCE (today: {today_date}):\n"
-    for name, habit_id in habits.items():
-        id_ref += f"- {name}: habitId={habit_id}\n"
-    id_ref += "\nUse these habitId values and today's date when calling complete-habit or add-habit-log tools."
+    if not habits:
+        return llm_analysis  # No structured data, fall back to LLM
 
-    return briefing + id_ref
+    # Build the concise briefing
+    lines = [f"TODAY ({today_date}) — {len(habits)} habits:\n"]
+    for h in habits:
+        status = "DONE" if h["done"] else h["progress"]
+        lines.append(f"- {h['name']} (habitId={h['id']}): {status}")
+
+    # Extract a short pattern summary from the LLM analysis (first 500 chars max)
+    # Strip markdown headers and keep only the insightful parts
+    pattern_lines = []
+    for line in llm_analysis.split("\n"):
+        stripped = line.strip()
+        if stripped.startswith("#") or not stripped:
+            continue
+        if any(kw in stripped.lower() for kw in ["pattern", "streak", "slip", "consistent", "fail", "miss", "skip", "behind", "progress"]):
+            pattern_lines.append(stripped)
+    pattern_summary = " ".join(pattern_lines)[:500]
+
+    if pattern_summary:
+        lines.append(f"\nPATTERNS: {pattern_summary}")
+
+    lines.append(f"\nUse habitId values above and date {today_date} when calling complete_habit or add_habit_log.")
+    lines.append("These are the ONLY habits that exist. Do NOT mention any other habits.")
+
+    return "\n".join(lines)
 
 
 def _save_briefing_trace(trace: list[dict], briefing: str) -> None:
@@ -244,8 +294,8 @@ async def _run_briefing_loop(access_token: str) -> str:
             if not briefing:
                 briefing = "Habit data was fetched but no briefing was produced. Proceed with a general check-in."
 
-            # Append structured habit ID reference extracted from raw MCP data
-            briefing = _append_habit_ids(trace, briefing)
+            # Build structured briefing from raw MCP data (deterministic habit list)
+            briefing = _build_structured_briefing(trace, briefing)
 
             _save_briefing_trace(trace, briefing)
             return briefing

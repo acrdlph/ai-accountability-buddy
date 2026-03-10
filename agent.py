@@ -21,8 +21,9 @@ from livekit.agents import (
     get_job_context,
 )
 from livekit.agents.beta.tools import EndCallTool
-from livekit.agents.llm import mcp
 from livekit.plugins import openai, noise_cancellation
+from mcp import ClientSession
+from mcp.client.sse import sse_client
 
 from habitify_auth import refresh_habitify_token
 from habitify_briefing import generate_briefing
@@ -35,46 +36,68 @@ logger.setLevel(logging.INFO)
 outbound_trunk_id = os.getenv("SIP_OUTBOUND_TRUNK_ID")
 default_phone = os.getenv("DEFAULT_PHONE_NUMBER")
 
-SYSTEM_PROMPT = """\
+SYSTEM_PROMPT_BEFORE_BRIEFING = """\
 You are an accountability coach calling for an evening habit check-in. \
-Your tone is direct, firm, and results-focused. You do not hedge, apologize, \
-or soften your assessments.
+Tone: direct, firm, results-focused.\
+"""
 
-Completed habits get brief acknowledgment. Incomplete habits get challenged: \
-why didn't you do it, and what's the plan to fix it.
+SYSTEM_PROMPT_AFTER_BRIEFING = """\
+Go through each habit above. Completed habits get brief acknowledgment. \
+Incomplete habits get challenged: why not, and what's the plan.
 
-You're calling to check in on the user's day and hold them accountable. \
-Reference the habit briefing to discuss specific habits, patterns, and streaks.
+When the user confirms a habit is done, call complete_habit with the habitId and date from above. \
+For numeric goals, ask for the value and call add_habit_log with the habitId and value. \
+Do NOT log habits the user says they skipped.
 
-When the user confirms completing a habit, use the complete-habit tool with the habit ID \
-and today's date from the briefing to record it. The briefing includes habit IDs as UUIDs \
-in parentheses like "(id: FE112B42-...)" and the date in YYYY-MM-DD format. \
-Both habitId and date are required parameters for complete-habit. \
-For goal-based habits with numeric targets, ask for the value and use add-habit-log \
-with the habitId and value. Do not log habits the user says they skipped or didn't do.
-
-Rules:
-- This is a voice call. Never use bullet points, markdown, or numbered lists.
-- Keep responses concise — under 3 sentences unless following up on a specific habit.
-- When the check-in is complete, say a direct goodbye and use the end_call tool.
-- If you hear a voicemail greeting or automated system instead of a real person, \
-immediately call the detected_answering_machine tool. Do not leave a message.\
+Rules: This is a voice call. No markdown, no lists. Keep responses under 3 sentences. \
+When done, say goodbye and call end_call. \
+If you hear a voicemail greeting, call detected_answering_machine immediately.\
 """
 
 
+HABITIFY_MCP_URL = "https://mcp.habitify.me/mcp"
+
+
+async def _call_habitify_tool(token: str, tool_name: str, arguments: dict) -> str:
+    """Open a fresh MCP connection, call a tool, return the result text.
+
+    The Habitify MCP SSE connection drops after ~30s of inactivity, so we
+    cannot keep a long-lived connection open during a voice call. Instead,
+    each tool call opens its own short-lived connection.
+    """
+    headers = {"Authorization": f"Bearer {token}"}
+    try:
+        async with sse_client(HABITIFY_MCP_URL, headers=headers) as (rs, ws):
+            async with ClientSession(rs, ws) as session:
+                await session.initialize()
+                result = await session.call_tool(tool_name, arguments)
+                text = result.content[0].text if result.content else "Done"
+                logger.info(f"Habitify {tool_name} succeeded: {text[:100]}")
+                return text
+    except Exception as e:
+        logger.error(f"Habitify {tool_name} failed: {e}")
+        return f"Error: {e}"
+
+
 class AccountabilityAgent(Agent):
-    def __init__(self, briefing: str = "") -> None:
+    def __init__(self, briefing: str = "", habitify_token: str = "") -> None:
+        self._habitify_token = habitify_token
         end_call_tool = EndCallTool(
             delete_room=True,
             end_instructions="Say a direct, firm goodbye. No fluff.",
         )
-        instructions = SYSTEM_PROMPT
         if briefing:
-            instructions += f"\n\n## Today's Habit Briefing\n\n{briefing}"
-            instructions += "\n\nUse this briefing to guide the conversation. Reference specific patterns and streaks."
-            instructions += "\nWhen the user confirms a habit is done, use the complete-habit tool with the habit ID from the briefing to record it."
-            instructions += "\nFor goal-based habits (with numeric targets), ask for the specific number and use add-habit-log with the habit ID."
-            instructions += "\nDo NOT mark habits the user says they skipped — leave them as-is."
+            instructions = (
+                SYSTEM_PROMPT_BEFORE_BRIEFING
+                + f"\n\n{briefing}\n\n"
+                + SYSTEM_PROMPT_AFTER_BRIEFING
+            )
+        else:
+            instructions = (
+                SYSTEM_PROMPT_BEFORE_BRIEFING
+                + "\n\nNo habit data available. Do a general accountability check-in.\n\n"
+                + SYSTEM_PROMPT_AFTER_BRIEFING
+            )
         super().__init__(
             instructions=instructions,
             tools=end_call_tool.tools,
@@ -83,7 +106,26 @@ class AccountabilityAgent(Agent):
     async def on_enter(self) -> None:
         """Agent speaks first — initiate the accountability check-in immediately."""
         await self.session.generate_reply(
-            instructions="Greet the user and kick off the accountability check-in. Reference specific habits from today's briefing. Be direct — no small talk."
+            instructions="Greet the user and kick off the accountability check-in. ONLY mention habits that appear in the HABIT ID REFERENCE section of the briefing. Never invent habits. Be direct — no small talk."
+        )
+
+    @function_tool()
+    async def complete_habit(self, ctx: RunContext, habitId: str, date: str):
+        """Mark a habit as completed. Use when the user confirms they did a habit. Requires habitId (UUID from briefing) and date (YYYY-MM-DD)."""
+        logger.info(f"Completing habit {habitId} for {date}")
+        return await _call_habitify_tool(
+            self._habitify_token, "complete-habit", {"habitId": habitId, "date": date}
+        )
+
+    @function_tool()
+    async def add_habit_log(self, ctx: RunContext, habitId: str, value: float, date: str = ""):
+        """Log a numeric value for a goal-based habit. Requires habitId (UUID from briefing) and value (number). Unit is always 'rep'. Optionally pass date (YYYY-MM-DD)."""
+        args: dict = {"habitId": habitId, "value": value, "unit": "rep"}
+        if date:
+            args["date"] = date
+        logger.info(f"Adding habit log: {habitId} = {value} rep")
+        return await _call_habitify_tool(
+            self._habitify_token, "add-habit-log", args
         )
 
     @function_tool()
@@ -104,20 +146,23 @@ async def _save_conversation_log(session: AgentSession, room_name: str) -> None:
     filepath = log_dir / f"conversation_{room_name}_{timestamp}.json"
 
     history = []
-    for item in session.history:
-        entry = {"role": item.role, "type": item.type}
-        if hasattr(item, "text") and item.text:
-            entry["text"] = item.text
-        if hasattr(item, "tool_calls") and item.tool_calls:
-            entry["tool_calls"] = [
-                {"name": tc.name, "arguments": tc.arguments}
-                for tc in item.tool_calls
-            ]
-        if hasattr(item, "tool_call_id") and item.tool_call_id:
-            entry["tool_call_id"] = item.tool_call_id
-            if hasattr(item, "content") and item.content:
-                entry["content"] = item.content
-        history.append(entry)
+    for item in session.history.items:
+        if item.type == "message":
+            history.append({
+                "role": item.role,
+                "text": item.text_content,
+            })
+        elif item.type == "function_call":
+            history.append({
+                "role": "assistant",
+                "tool_call": item.name,
+                "arguments": item.raw_arguments if hasattr(item, "raw_arguments") else str(item.arguments),
+            })
+        elif item.type == "function_call_output":
+            history.append({
+                "role": "tool",
+                "output": item.text_content if hasattr(item, "text_content") else str(item),
+            })
 
     filepath.write_text(json.dumps(history, indent=2, default=str))
     logger.info(f"Conversation log saved to {filepath}")
@@ -145,30 +190,21 @@ async def entrypoint(ctx: JobContext) -> None:
         logger.error(f"Pre-call briefing failed: {e}")
         briefing = "Could not fetch habit data. Do a general accountability check-in."
 
-    # Stage 2: Voice agent with MCP write tools for real-time habit logging
-    habitify_mcp = None
-    if habitify_token:
-        habitify_mcp = mcp.MCPServerHTTP(
-            url="https://mcp.habitify.me/mcp",
-            transport_type="sse",
-            headers={"Authorization": f"Bearer {habitify_token}"},
-        )
-
+    # Stage 2: Voice agent with custom Habitify tools (fresh MCP connection per call)
     session = AgentSession(
         llm=openai.realtime.RealtimeModel(voice="shimmer"),
-        mcp_servers=[habitify_mcp] if habitify_mcp else [],
         max_tool_steps=10,
     )
 
     # Log conversation when session ends
     @session.on("close")
-    async def _on_session_close(*args):
-        await _save_conversation_log(session, ctx.room.name)
+    def _on_session_close(*args):
+        asyncio.create_task(_save_conversation_log(session, ctx.room.name))
 
     # 1. Start session in background -- agent ready before call connects
     session_started = asyncio.create_task(
         session.start(
-            agent=AccountabilityAgent(briefing=briefing),
+            agent=AccountabilityAgent(briefing=briefing, habitify_token=habitify_token or ""),
             room=ctx.room,
             room_input_options=RoomInputOptions(
                 noise_cancellation=noise_cancellation.BVCTelephony(),
