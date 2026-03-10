@@ -1,6 +1,7 @@
 # Environment files with credentials
 .env.local
 .env
+outbound-trunk.json
 
 # Python
 __pycache__/
