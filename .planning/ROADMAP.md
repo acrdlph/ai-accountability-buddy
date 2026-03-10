@@ -30,12 +30,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. The agent's tone is direct and no-nonsense: it does not hedge, apologize, or soften its assessments
   4. After the conversation ends naturally, the agent says goodbye and the room is deleted cleanly — no lingering connections
   5. Voice responses feel natural with no perceptible lag (OpenAI Realtime single-hop speech-to-speech)
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 01-01: Bootstrap from outbound-caller-python template, configure environment, verify worker connects to LiveKit Cloud
-- [ ] 01-02: Implement AccountabilityAgent with tough-love system prompt, on_enter generate_reply, end_call tool, BVCTelephony noise cancellation
-- [ ] 01-03: Browser test — verify agent speaks first, conversation flows naturally, room deletion terminates session cleanly
+- [ ] 01-01-PLAN.md — Bootstrap project structure and implement full AccountabilityAgent
+- [ ] 01-02-PLAN.md — Browser verification of agent speaks first, conversation, and clean termination
 
 ### Phase 2: Twilio SIP Telephony
 **Goal**: The agent can call a real phone number — a manual CLI dispatch rings a phone and the agent speaks
@@ -112,7 +111,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Core Voice Agent | 0/3 | Not started | - |
+| 1. Core Voice Agent | 0/2 | Not started | - |
 | 2. Twilio SIP Telephony | 0/3 | Not started | - |
 | 3. Habitify Integration | 0/3 | Not started | - |
 | 4. Scheduling and Retry | 0/3 | Not started | - |
