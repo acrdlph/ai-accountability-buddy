@@ -1,7 +1,7 @@
 """Pre-call reasoning agent that analyzes habit data via Habitify MCP.
 
 Connects to the official Habitify MCP server, runs an agentic tool-calling
-loop using OpenAI Responses API (gpt-4o-mini), and produces a natural-language
+loop using OpenAI Responses API (gpt-5-mini), and produces a natural-language
 briefing with patterns, streaks, and talking points for the accountability coach.
 """
 
@@ -79,7 +79,7 @@ async def generate_briefing(access_token: str) -> str:
     """Generate a multi-day habit briefing via MCP agentic tool-calling loop.
 
     Connects to the Habitify MCP server, discovers tools, then runs an
-    OpenAI Responses API loop where gpt-4o-mini autonomously fetches and
+    OpenAI Responses API loop where gpt-5-mini autonomously fetches and
     analyzes habit data across multiple days.
 
     Args:
@@ -165,7 +165,7 @@ async def _run_briefing_loop(access_token: str) -> str:
             client = openai.AsyncOpenAI()
 
             response = await client.responses.create(
-                model="gpt-4o-mini",
+                model="gpt-5-mini",
                 instructions=BRIEFING_SYSTEM_PROMPT,
                 input=f"Today's date is {date.today().isoformat()}. Analyze my habit situation.",
                 tools=openai_tools,
@@ -215,7 +215,7 @@ async def _run_briefing_loop(access_token: str) -> str:
 
                 # Continue conversation with tool results -- history is server-side
                 response = await client.responses.create(
-                    model="gpt-4o-mini",
+                    model="gpt-5-mini",
                     previous_response_id=response.id,
                     input=tool_results,
                     tools=openai_tools,
