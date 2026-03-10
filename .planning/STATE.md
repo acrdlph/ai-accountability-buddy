@@ -9,29 +9,29 @@ See: .planning/PROJECT.md (updated 2026-03-10)
 
 ## Current Position
 
-Phase: 1 of 5 (Core Voice Agent)
-Plan: 1 of 2 in current phase
-Status: Executing
-Last activity: 2026-03-10 — Completed 01-01-PLAN.md (bootstrap + voice agent)
+Phase: 1 of 5 (Core Voice Agent) -- COMPLETE
+Plan: 2 of 2 in current phase
+Status: Phase Complete
+Last activity: 2026-03-10 — Completed 01-02-PLAN.md (browser verification, Phase 1 done)
 
-Progress: [█░░░░░░░░░] 10%
+Progress: [██░░░░░░░░] 20%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
-- Average duration: 3min
-- Total execution time: 3min
+- Total plans completed: 2
+- Average duration: 7.5min
+- Total execution time: 15min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-core-voice-agent | 1 | 3min | 3min |
+| 01-core-voice-agent | 2 | 15min | 7.5min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (3min)
-- Trend: n/a (single data point)
+- Last 5 plans: 01-01 (3min), 01-02 (12min)
+- Trend: Phase 1 complete
 
 *Updated after each plan completion*
 
@@ -48,6 +48,7 @@ Recent decisions affecting current work:
 - [Research]: Use credential-list auth on Twilio trunk, not IP allowlisting (LiveKit IPs are not static)
 - [01-01]: Used hatchling with packages=['.'] for single-file project structure
 - [01-01]: Used generate_reply(instructions=...) with explicit instructions for predictable opener
+- [01-02]: Switched from custom end_call to prebuilt EndCallTool for reliable call termination with playout
 
 ### Pending Todos
 
@@ -61,5 +62,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-10
-Stopped at: Completed 01-01-PLAN.md (bootstrap + voice agent implementation)
+Stopped at: Completed 01-02-PLAN.md (browser verification -- Phase 1 complete)
 Resume file: None
