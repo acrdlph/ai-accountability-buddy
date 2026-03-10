@@ -66,7 +66,7 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — OAuth setup script + token refresh module for official Habitify MCP server
+- [x] 03-01-PLAN.md — OAuth setup script + token refresh module for official Habitify MCP server
 - [ ] 03-02-PLAN.md — Pre-call reasoning agent loop (multi-day MCP analysis) + voice agent MCP write tools in agent.py
 - [ ] 03-03-PLAN.md — End-to-end verification: live call with real Habitify data, verify pre-call briefing, habit discussion, and write-back via MCP
 
@@ -113,6 +113,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Core Voice Agent | 2/2 | Complete | 2026-03-10 |
 | 2. Twilio SIP Telephony | 3/3 | Complete | 2026-03-10 |
-| 3. Habitify Integration | 0/3 | Not started | - |
+| 3. Habitify Integration | 1/3 | In Progress | - |
 | 4. Scheduling and Retry | 0/3 | Not started | - |
 | 5. Deployment and Hardening | 0/3 | Not started | - |
