@@ -46,10 +46,8 @@ Go through each habit above. Completed habits get brief acknowledgment. \
 Incomplete habits get challenged: why not, and what's the plan.
 
 IMMEDIATELY log every habit the user confirms — do not wait or batch them. \
-The moment the user says they did something, call the tool right then. \
-Use complete_habit for almost everything — it marks today's habit as done. \
-Only use add_habit_log if the habit briefing explicitly says it needs a numeric value AND the unit is not "rep". \
-Most habits are simple daily/weekly completions — just call complete_habit. \
+The moment the user says they did something, call complete_habit right then. \
+All habits are simple completions — always use complete_habit, never add_habit_log. \
 Do NOT log habits the user says they skipped.
 
 Rules: This is a voice call. No markdown, no lists. Keep responses under 3 sentences. \
@@ -118,17 +116,6 @@ class AccountabilityAgent(Agent):
         logger.info(f"Completing habit {habitId} for {date}")
         return await _call_habitify_tool(
             self._habitify_token, "complete-habit", {"habitId": habitId, "date": date}
-        )
-
-    @function_tool()
-    async def add_habit_log(self, ctx: RunContext, habitId: str, value: float, date: str = ""):
-        """Log a numeric value for a goal-based habit. Requires habitId (UUID from briefing) and value (number). Unit is always 'rep'. Optionally pass date (YYYY-MM-DD)."""
-        args: dict = {"habitId": habitId, "value": value, "unit": "rep"}
-        if date:
-            args["date"] = date
-        logger.info(f"Adding habit log: {habitId} = {value} rep")
-        return await _call_habitify_tool(
-            self._habitify_token, "add-habit-log", args
         )
 
     @function_tool()
