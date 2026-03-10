@@ -14,17 +14,9 @@ The agent runs in two stages:
 
 2. **Voice call** — The agent dials your phone via Twilio SIP, greets you with the briefing context, walks through each habit, and logs completions in real-time as you confirm them. If it hits voicemail, it hangs up.
 
-```
-┌──────────────────┐     ┌──────────────────┐     ┌──────────────┐
-│  Habitify MCP    │────▶│  Briefing Agent  │────▶│  Voice Agent │
-│  (habit data)    │     │  (gpt-5-mini)    │     │  (Realtime)  │
-└──────────────────┘     └──────────────────┘     └──────┬───────┘
-                                                         │
-                              ┌──────────────────┐       │
-                              │  Twilio SIP      │◀──────┘
-                              │  (phone call)    │
-                              └──────────────────┘
-```
+<p align="center">
+  <img src="docs/architecture.svg" alt="Architecture diagram" width="700"/>
+</p>
 
 ## Prerequisites
 
