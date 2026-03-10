@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-03-10)
 ## Current Position
 
 Phase: 1 of 5 (Core Voice Agent)
-Plan: 0 of 3 in current phase
-Status: Ready to plan
-Last activity: 2026-03-10 — Roadmap created, research complete
+Plan: 1 of 2 in current phase
+Status: Executing
+Last activity: 2026-03-10 — Completed 01-01-PLAN.md (bootstrap + voice agent)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█░░░░░░░░░] 10%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: -
-- Total execution time: -
+- Total plans completed: 1
+- Average duration: 3min
+- Total execution time: 3min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 01-core-voice-agent | 1 | 3min | 3min |
 
 **Recent Trend:**
-- Last 5 plans: n/a
-- Trend: n/a
+- Last 5 plans: 01-01 (3min)
+- Trend: n/a (single data point)
 
 *Updated after each plan completion*
 
@@ -46,6 +46,8 @@ Recent decisions affecting current work:
 - [Research]: Bootstrap Phase 1 from `outbound-caller-python` official LiveKit template, not from scratch
 - [Research]: Use TwirpError for no-answer detection, not participant.disconnect_reason (known SDK bug #398)
 - [Research]: Use credential-list auth on Twilio trunk, not IP allowlisting (LiveKit IPs are not static)
+- [01-01]: Used hatchling with packages=['.'] for single-file project structure
+- [01-01]: Used generate_reply(instructions=...) with explicit instructions for predictable opener
 
 ### Pending Todos
 
@@ -59,5 +61,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-10
-Stopped at: Roadmap and STATE.md created; ready to plan Phase 1
+Stopped at: Completed 01-01-PLAN.md (bootstrap + voice agent implementation)
 Resume file: None

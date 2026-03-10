@@ -111,7 +111,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Core Voice Agent | 0/2 | Not started | - |
+| 1. Core Voice Agent | 1/2 | In Progress | - |
 | 2. Twilio SIP Telephony | 0/3 | Not started | - |
 | 3. Habitify Integration | 0/3 | Not started | - |
 | 4. Scheduling and Retry | 0/3 | Not started | - |
