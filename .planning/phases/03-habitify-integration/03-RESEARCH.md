@@ -14,23 +14,42 @@ The Habitify REST API is straightforward -- API key auth via `Authorization` hea
 
 On the LiveKit side, the pattern is well-established: parse `ctx.job.metadata` in the entrypoint, construct the agent with dynamic instructions that include the habit list, and set `max_tool_steps` on `AgentSession` to accommodate one tool call per habit plus overhead. The survey caller recipe demonstrates this exact metadata-to-instructions pattern. The existing `agent.py` already parses metadata for phone numbers -- extending it to include habit data is a natural evolution. The `aiohttp` library is already a transitive dependency of `livekit-agents`, so no new HTTP client package is needed for API calls.
 
-**Primary recommendation — Two-Stage Pre-Call Architecture (USER DECISION):**
+**Primary recommendation — Two-Stage Pre-Call Architecture with MCP Agent Loop (USER DECISION):**
 
-The user explicitly requested a **pre-call reasoning LLM** instead of a simple API fetch. The architecture is:
+The user explicitly requested a **pre-call reasoning LLM agent loop** using Habitify MCP, not a simple API fetch. The architecture is:
 
-1. **Stage 1: Pre-call reasoning LLM** — Before the voice call starts, spawn a lightweight LLM call (e.g., GPT-4o-mini or similar) that:
-   - Calls the Habitify Journal API for **today AND the last few days** (not just today)
-   - Reasons through the habit data: what's due today, what's overdue, streaks broken, patterns of slacking
-   - Produces a **structured briefing** — a summary of the user's habit situation with talking points
-   - This is NOT a simple fetch-and-format — it's an LLM that uses tools to gather data and then reasons about what's important to discuss
+1. **Stage 1: Pre-call reasoning agent loop** — Before the voice call starts, run an agentic tool-calling loop in the entrypoint:
+   - Uses the **Habitify MCP server** (community NPM server via `MCPServerStdio` — API key auth, no OAuth complexity)
+   - The LLM gets a prompt: "Analyze this user's habit situation. Fetch today's habits, check the last few days, identify patterns."
+   - The LLM autonomously calls MCP tools (`get-journal` for today, yesterday, last few days) in a back-and-forth loop
+   - It reasons about what it finds: streaks broken, habits being slacked on, what to celebrate, what to push on
+   - Produces a **structured briefing** — natural language analysis with talking points, not a raw habit list
+   - This is an **agentic loop**: LLM calls tools → gets results → decides what else to check → calls more tools → until it has a complete picture
 
 2. **Stage 2: Voice agent** — Receives the briefing as injected context in its system prompt. Knows exactly what to ask about, what to push on (e.g., "you've skipped meditation 3 days in a row"), what to celebrate. Does NOT need to call Habitify read APIs itself.
 
-3. **Write side stays on voice agent** — The `log_habit` function tool remains on the voice agent for real-time habit completion during the conversation.
+3. **Write side: Voice agent uses Habitify MCP directly** — The voice agent also gets the Habitify MCP server for write operations (`complete-habit`, `add-habit-log`). LiveKit's native MCP support makes this transparent — the LLM discovers and calls tools automatically during conversation.
 
-This replaces the simpler "fetch in entrypoint, format into prompt" pattern. The pre-call LLM adds intelligence — it can identify patterns, prioritize what to discuss, and produce natural-language context rather than a raw habit list.
+**Why MCP instead of REST:**
+- The pre-call agent loop needs to call tools dynamically (the LLM decides what to fetch). MCP is designed for exactly this — LLM-native tool discovery and calling.
+- The voice agent's write operations are also cleaner via MCP: `complete-habit` handles simple/goal routing internally, no branching code needed.
+- The community NPM MCP server uses simple API key auth (env var `HABITIFY_API_KEY`) — no OAuth complexity.
+- See `.planning/research/habitify-mcp.md` for full MCP research.
 
-**Implementation approach:** Use the OpenAI chat completions API (already available via `openai` package) for the pre-call reasoning step. Give it the Habitify API as tools (function calling). Run it in the entrypoint before creating the voice agent. Pass its output as part of the `AccountabilityAgent` instructions.
+**Why community NPM server over official MCP:**
+- API key auth vs OAuth 2.0 — dramatically simpler for programmatic use
+- No refresh token lifecycle to manage
+- Requires Node.js 18+ on the host (acceptable tradeoff for simplicity)
+- 12 tools including `get-journal`, `add-habit-log` which cover our needs
+
+**Implementation approach for the pre-call agent loop:**
+- Use the OpenAI chat completions API with tool calling in a while loop
+- Register the Habitify MCP tools as OpenAI function tools (discover via MCP `list_tools()`, convert schemas)
+- Loop: send messages → get tool_calls → execute against MCP → send results → repeat until LLM produces final briefing
+- Run in the entrypoint before creating the voice agent
+- Pass the briefing output as part of `AccountabilityAgent` instructions
+
+**Alternative:** Use LiveKit's own `AgentSession` for the pre-call step too (give it MCP servers, let it reason). But a simpler chat completions loop is lighter weight and doesn't need audio/TTS infrastructure.
 
 ---
 
