@@ -4,7 +4,7 @@ An AI voice agent that calls you every evening to review your habits. It pulls y
 
 Built with [LiveKit Agents](https://docs.livekit.io/agents/), [OpenAI Realtime API](https://platform.openai.com/docs/guides/realtime), and [Habitify MCP](https://www.habitify.me/).
 
-> **Work in progress.** The core voice agent and Habitify integration are functional. Scheduling and production deployment are still ahead. See the [Roadmap](#roadmap) for details.
+> **Work in progress.** The core voice agent and Habitify integration are functional. However, the model still misunderstands and makes tracking mistakes easily - this will require some more prompt engineering. Scheduling and production deployment are still ahead. See the [Roadmap](#roadmap) for details.
 
 ## How It Works
 
