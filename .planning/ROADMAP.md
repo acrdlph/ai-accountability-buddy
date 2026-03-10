@@ -49,8 +49,8 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Configure Twilio SIP trunk with credential-list auth, register LiveKit outbound SIP trunk, set env vars
-- [ ] 02-02-PLAN.md — Add SIP dialing, TwirpError handling, and voicemail detection to agent.py
+- [x] 02-01-PLAN.md — Configure Twilio SIP trunk with credential-list auth, register LiveKit outbound SIP trunk, set env vars
+- [x] 02-02-PLAN.md — Add SIP dialing, TwirpError handling, and voicemail detection to agent.py
 - [ ] 02-03-PLAN.md — End-to-end test: dispatch rings phone, agent speaks first, no-answer and voicemail paths work
 
 ### Phase 3: Habitify Integration
@@ -112,7 +112,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Core Voice Agent | 2/2 | Complete | 2026-03-10 |
-| 2. Twilio SIP Telephony | 0/3 | Not started | - |
+| 2. Twilio SIP Telephony | 2/3 | In Progress | - |
 | 3. Habitify Integration | 0/3 | Not started | - |
 | 4. Scheduling and Retry | 0/3 | Not started | - |
 | 5. Deployment and Hardening | 0/3 | Not started | - |

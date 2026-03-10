@@ -100,19 +100,19 @@ Stay within LiveKit Cloud free tier (~1,000 agent min/month). Twilio and OpenAI 
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FR1 | Phase 2 — Twilio SIP Telephony | Pending |
+| FR1 | Phase 2 — Twilio SIP Telephony | Complete |
 | FR2 | Phase 3 — Habitify Integration | Pending |
 | FR3 | Phase 1 — Core Voice Agent | Complete |
 | FR4 | Phase 3 — Habitify Integration | Pending |
 | FR5 | Phase 1 — Core Voice Agent | Complete |
 | FR6 | Phase 1 — Core Voice Agent | Complete |
 | FR7 | Phase 4 — Scheduling and Retry | Pending |
-| FR8 | Phase 2 — Twilio SIP Telephony | Pending |
+| FR8 | Phase 2 — Twilio SIP Telephony | Complete |
 | FR9 | Phase 1 — Core Voice Agent | Complete |
 | NFR1 | Phase 1 — Core Voice Agent | Complete |
 | NFR2 | Phase 1 — Core Voice Agent | Complete |
 | NFR3 | Phase 5 — Deployment and Hardening | Pending |
-| NFR4 | Phase 2 — Twilio SIP Telephony | Pending |
+| NFR4 | Phase 2 — Twilio SIP Telephony | Complete |
 | NFR5 | Phase 5 — Deployment and Hardening | Pending |
 
 ---
