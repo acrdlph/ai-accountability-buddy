@@ -19,7 +19,11 @@ from livekit.agents import (
     get_job_context,
 )
 from livekit.agents.beta.tools import EndCallTool
+from livekit.agents.llm import mcp
 from livekit.plugins import openai, noise_cancellation
+
+from habitify_auth import refresh_habitify_token
+from habitify_briefing import generate_briefing
 
 load_dotenv(dotenv_path=".env.local")
 
@@ -38,7 +42,11 @@ Completed habits get brief acknowledgment. Incomplete habits get challenged: \
 why didn't you do it, and what's the plan to fix it.
 
 You're calling to check in on the user's day and hold them accountable. \
-Ask what they accomplished today and challenge them on anything they avoided.
+Reference the habit briefing to discuss specific habits, patterns, and streaks.
+
+When the user confirms completing a habit, use the complete-habit tool to record it. \
+For goal-based habits with numeric targets, ask for the value and use add-habit-log. \
+Do not log habits the user says they skipped or didn't do.
 
 Rules:
 - This is a voice call. Never use bullet points, markdown, or numbered lists.
@@ -50,20 +58,27 @@ immediately call the detected_answering_machine tool. Do not leave a message.\
 
 
 class AccountabilityAgent(Agent):
-    def __init__(self) -> None:
+    def __init__(self, briefing: str = "") -> None:
         end_call_tool = EndCallTool(
             delete_room=True,
             end_instructions="Say a direct, firm goodbye. No fluff.",
         )
+        instructions = SYSTEM_PROMPT
+        if briefing:
+            instructions += f"\n\n## Today's Habit Briefing\n\n{briefing}"
+            instructions += "\n\nUse this briefing to guide the conversation. Reference specific patterns and streaks."
+            instructions += "\nWhen the user confirms a habit is done, use the complete-habit or add-habit-log tool from the connected Habitify service to record it."
+            instructions += "\nFor goal-based habits (with numeric targets), ask for the specific number and use add-habit-log."
+            instructions += "\nDo NOT mark habits the user says they skipped — leave them as-is."
         super().__init__(
-            instructions=SYSTEM_PROMPT,
+            instructions=instructions,
             tools=end_call_tool.tools,
         )
 
     async def on_enter(self) -> None:
         """Agent speaks first — initiate the accountability check-in immediately."""
         await self.session.generate_reply(
-            instructions="Greet the user and kick off the accountability check-in. Be direct — no small talk."
+            instructions="Greet the user and kick off the accountability check-in. Reference specific habits from today's briefing. Be direct — no small talk."
         )
 
     @function_tool()
@@ -87,14 +102,36 @@ async def entrypoint(ctx: JobContext) -> None:
         ctx.shutdown()
         return
 
+    # Stage 1: Pre-call reasoning -- fetch and analyze habits via MCP
+    briefing = ""
+    habitify_token = None
+    try:
+        habitify_token = await refresh_habitify_token()
+        briefing = await generate_briefing(habitify_token)
+        logger.info(f"Pre-call briefing generated ({len(briefing)} chars)")
+    except Exception as e:
+        logger.error(f"Pre-call briefing failed: {e}")
+        briefing = "Could not fetch habit data. Do a general accountability check-in."
+
+    # Stage 2: Voice agent with MCP write tools for real-time habit logging
+    habitify_mcp = None
+    if habitify_token:
+        habitify_mcp = mcp.MCPServerHTTP(
+            url="https://mcp.habitify.me/mcp",
+            transport_type="sse",
+            headers={"Authorization": f"Bearer {habitify_token}"},
+        )
+
     session = AgentSession(
         llm=openai.realtime.RealtimeModel(voice="shimmer"),
+        mcp_servers=[habitify_mcp] if habitify_mcp else [],
+        max_tool_steps=10,
     )
 
     # 1. Start session in background -- agent ready before call connects
     session_started = asyncio.create_task(
         session.start(
-            agent=AccountabilityAgent(),
+            agent=AccountabilityAgent(briefing=briefing),
             room=ctx.room,
             room_input_options=RoomInputOptions(
                 noise_cancellation=noise_cancellation.BVCTelephony(),
