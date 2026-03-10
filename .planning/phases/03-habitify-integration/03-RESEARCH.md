@@ -33,21 +33,35 @@ The user explicitly requested a **pre-call reasoning LLM agent loop** using Habi
 **Why MCP instead of REST:**
 - The pre-call agent loop needs to call tools dynamically (the LLM decides what to fetch). MCP is designed for exactly this — LLM-native tool discovery and calling.
 - The voice agent's write operations are also cleaner via MCP: `complete-habit` handles simple/goal routing internally, no branching code needed.
-- The community NPM MCP server uses simple API key auth (env var `HABITIFY_API_KEY`) — no OAuth complexity.
 - See `.planning/research/habitify-mcp.md` for full MCP research.
 
-**Why community NPM server over official MCP:**
-- API key auth vs OAuth 2.0 — dramatically simpler for programmatic use
-- No refresh token lifecycle to manage
-- Requires Node.js 18+ on the host (acceptable tradeoff for simplicity)
-- 12 tools including `get-journal`, `add-habit-log` which cover our needs
+**Why official Habitify MCP server (USER DECISION):**
+- Full official tool coverage: `list-habits-by-date`, `complete-habit`, `fail-habit`, `skip-habit`, `add-habit-log`, etc.
+- Server handles routing internally (no need for simple/goal branching in our code)
+- No Node.js dependency (unlike community NPM server)
+- Future-proof as Habitify updates their tools
+- OAuth setup is a one-time task; after that, refresh tokens enable fully headless operation
+- See `.planning/research/habitify-mcp.md` Section 2 for complete OAuth flow details
+
+**OAuth setup (one-time, part of Phase 3 execution):**
+1. Register client via `POST https://account.habitify.me/reg`
+2. Run auth code + PKCE flow in browser (scope: `openid offline_access all`)
+3. Exchange code at `https://account.habitify.me/token` → get access + refresh tokens
+4. Store refresh token in `.env.local` as `HABITIFY_REFRESH_TOKEN`
+5. At runtime: `POST /token` with `grant_type=refresh_token` → fresh access token
 
 **Implementation approach for the pre-call agent loop:**
 - Use the OpenAI chat completions API with tool calling in a while loop
-- Register the Habitify MCP tools as OpenAI function tools (discover via MCP `list_tools()`, convert schemas)
-- Loop: send messages → get tool_calls → execute against MCP → send results → repeat until LLM produces final briefing
+- Connect to official Habitify MCP server, discover tools via `list_tools()`
+- Convert MCP tool schemas to OpenAI function tool format
+- Loop: send messages → get tool_calls → execute against MCP server → send results → repeat until LLM produces final briefing
 - Run in the entrypoint before creating the voice agent
 - Pass the briefing output as part of `AccountabilityAgent` instructions
+
+**Voice agent MCP integration:**
+- LiveKit `MCPServerHTTP` with `url="https://mcp.habitify.me/mcp"`, `transport_type="sse"`
+- Refresh OAuth token at session start, pass as `headers={"Authorization": f"Bearer {token}"}`
+- LLM auto-discovers `complete-habit`, `add-habit-log` etc. for real-time writes during conversation
 
 **Alternative:** Use LiveKit's own `AgentSession` for the pre-call step too (give it MCP servers, let it reason). But a simpler chat completions loop is lighter weight and doesn't need audio/TTS infrastructure.
 
