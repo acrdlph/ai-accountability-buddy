@@ -63,12 +63,12 @@ Plans:
   3. For goal-based habits (e.g., "ran 5km"), Habitify logs the numeric value — not just a yes/no status
   4. Habits the user says they skipped are correctly left as incomplete in Habitify
   5. The agent handles at least 5 habits in a single call without tool-step limits blocking completion
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 03-01: Implement Habitify REST client — GET /journal at dispatch time, pass habit list via dispatch metadata; validate both simple and goal-based habit types against real Habitify account
-- [ ] 03-02: Implement log_habit function tool with branching: PUT /status/:id for simple habits, POST /logs/:id for goal-based habits; set max_tool_steps to habits + 2
-- [ ] 03-03: End-to-end test — live call with real Habitify data, verify pre-call habit fetch, verify all habit types write correctly after conversation
+- [ ] 03-01-PLAN.md — Create Habitify REST client and pre-call reasoning LLM that fetches multi-day habits, analyzes patterns, and injects briefing into agent instructions
+- [ ] 03-02-PLAN.md — Implement log_habit function tool with simple/goal branching (PUT /status vs POST /logs) and fuzzy habit name matching
+- [ ] 03-03-PLAN.md — End-to-end verification: live call with real Habitify data, verify pre-call fetch, habit discussion, and write-back to Habitify
 
 ### Phase 4: Scheduling and Retry
 **Goal**: The system calls autonomously at 7pm every day without any manual trigger, and retries once 30 minutes later if unanswered
