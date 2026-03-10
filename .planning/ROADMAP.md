@@ -13,7 +13,7 @@ Five phases take this project from a bootstrapped LiveKit agent (tested in a bro
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Core Voice Agent** - Working LiveKit + OpenAI Realtime agent with tough-love personality, testable in browser
-- [ ] **Phase 2: Twilio SIP Telephony** - Agent calls a real phone number via Twilio Elastic SIP trunk
+- [x] **Phase 2: Twilio SIP Telephony** - Agent calls a real phone number via Twilio Elastic SIP trunk
 - [ ] **Phase 3: Habitify Integration** - Agent fetches today's habits and writes completion results back to Habitify
 - [ ] **Phase 4: Scheduling and Retry** - System calls autonomously at 7pm daily and retries once on no-answer
 - [ ] **Phase 5: Deployment and Hardening** - Deploy to LiveKit Cloud with structured logging and auto-restart
@@ -51,7 +51,7 @@ Plans:
 Plans:
 - [x] 02-01-PLAN.md — Configure Twilio SIP trunk with credential-list auth, register LiveKit outbound SIP trunk, set env vars
 - [x] 02-02-PLAN.md — Add SIP dialing, TwirpError handling, and voicemail detection to agent.py
-- [ ] 02-03-PLAN.md — End-to-end test: dispatch rings phone, agent speaks first, no-answer and voicemail paths work
+- [x] 02-03-PLAN.md — End-to-end test: dispatch rings phone, agent speaks first, no-answer and voicemail paths work
 
 ### Phase 3: Habitify Integration
 **Goal**: The agent knows which habits are due today before the call starts and writes accurate completion results to Habitify during the conversation
@@ -112,7 +112,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Core Voice Agent | 2/2 | Complete | 2026-03-10 |
-| 2. Twilio SIP Telephony | 2/3 | In Progress | - |
+| 2. Twilio SIP Telephony | 3/3 | Complete | 2026-03-10 |
 | 3. Habitify Integration | 0/3 | Not started | - |
 | 4. Scheduling and Retry | 0/3 | Not started | - |
 | 5. Deployment and Hardening | 0/3 | Not started | - |
