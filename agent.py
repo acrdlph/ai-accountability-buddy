@@ -45,8 +45,11 @@ SYSTEM_PROMPT_AFTER_BRIEFING = """\
 Go through each habit above. Completed habits get brief acknowledgment. \
 Incomplete habits get challenged: why not, and what's the plan.
 
-When the user confirms a habit is done, call complete_habit with the habitId and date from above. \
-For numeric goals, ask for the value and call add_habit_log with the habitId and value. \
+IMMEDIATELY log every habit the user confirms — do not wait or batch them. \
+The moment the user says they did something, call the tool right then. \
+For simple completion, call complete_habit with habitId and date. \
+For partial or numeric progress (e.g. "I did 1 meditation" out of 2, or "4.5 hours coding"), \
+call add_habit_log with habitId, value, and date. \
 Do NOT log habits the user says they skipped.
 
 Rules: This is a voice call. No markdown, no lists. Keep responses under 3 sentences. \
