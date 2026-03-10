@@ -34,7 +34,7 @@ The agent runs in two stages:
 - [uv](https://docs.astral.sh/uv/) package manager
 - A [LiveKit Cloud](https://cloud.livekit.io/) account (free tier works)
 - An [OpenAI API](https://platform.openai.com/) key
-- A [Twilio](https://www.twilio.com/) account with Elastic SIP Trunking
+- A [Twilio](https://www.twilio.com/) account with a purchased phone number and an Elastic SIP Trunk (see [Twilio setup](#set-up-twilio-sip) below)
 - A [Habitify](https://www.habitify.me/) account with habits set up
 
 ## Setup
@@ -45,7 +45,18 @@ The agent runs in two stages:
 uv sync
 ```
 
-### 2. Connect Habitify
+### 2. Set up Twilio SIP
+
+The agent makes outbound phone calls through Twilio. You'll need to:
+
+1. **Buy a phone number** — In the Twilio Console, go to *Phone Numbers > Manage > Buy a Number* and purchase one with voice capability.
+2. **Create an Elastic SIP Trunk** — Go to *Elastic SIP Trunking > Trunks > Create new SIP Trunk*. Give it a name (e.g. "accountability-buddy").
+3. **Add a Credential List** — Under your trunk's *Authentication* tab, create a credential list. LiveKit uses these credentials to authenticate outbound calls.
+4. **Register the trunk in LiveKit** — In the LiveKit Cloud dashboard, create an outbound SIP trunk pointed at your Twilio trunk. This gives you the `SIP_OUTBOUND_TRUNK_ID` for your `.env.local`.
+
+For detailed instructions, see the [LiveKit SIP Quickstart](https://docs.livekit.io/agents/quickstarts/outbound-calls/) and [Twilio Elastic SIP Trunking docs](https://www.twilio.com/docs/sip-trunking).
+
+### 3. Connect Habitify
 
 Run the one-time OAuth setup. It registers an OAuth client, opens your browser to authorize, and saves credentials to `.env.local`:
 
@@ -53,7 +64,7 @@ Run the one-time OAuth setup. It registers an OAuth client, opens your browser t
 uv run scripts/habitify_oauth_setup.py
 ```
 
-### 3. Configure environment
+### 4. Configure environment
 
 Create `.env.local` in the project root (the OAuth setup script will have already created this file with Habitify credentials):
 
@@ -75,7 +86,7 @@ HABITIFY_CLIENT_ID=...
 HABITIFY_REFRESH_TOKEN=...
 ```
 
-### 4. Run the agent
+### 5. Run the agent
 
 ```bash
 uv run agent.py dev
