@@ -4,18 +4,15 @@ import asyncio
 import logging
 
 from dotenv import load_dotenv
-from livekit import api
 from livekit.agents import (
     Agent,
     AgentSession,
     JobContext,
-    RunContext,
     RoomInputOptions,
-    function_tool,
-    get_job_context,
     cli,
     WorkerOptions,
 )
+from livekit.agents.beta.tools import EndCallTool
 from livekit.plugins import openai, noise_cancellation
 
 load_dotenv(dotenv_path=".env.local")
@@ -43,24 +40,19 @@ Rules:
 
 class AccountabilityAgent(Agent):
     def __init__(self) -> None:
-        super().__init__(instructions=SYSTEM_PROMPT)
+        end_call_tool = EndCallTool(
+            delete_room=True,
+            end_instructions="Say a direct, firm goodbye. No fluff.",
+        )
+        super().__init__(
+            instructions=SYSTEM_PROMPT,
+            tools=end_call_tool.tools,
+        )
 
     async def on_enter(self) -> None:
         """Agent speaks first — initiate the accountability check-in immediately."""
         await self.session.generate_reply(
             instructions="Greet the user and kick off the accountability check-in. Be direct — no small talk."
-        )
-
-    @function_tool()
-    async def end_call(self, ctx: RunContext) -> None:
-        """End the call when the habit check-in conversation is complete."""
-        current_speech = ctx.session.current_speech
-        if current_speech:
-            await current_speech.wait_for_playout()
-
-        job_ctx = get_job_context()
-        await job_ctx.api.room.delete_room(
-            api.DeleteRoomRequest(room=job_ctx.room.name)
         )
 
 
