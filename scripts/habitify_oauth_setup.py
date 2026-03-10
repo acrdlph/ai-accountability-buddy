@@ -56,6 +56,7 @@ def _register_client() -> str:
                 "grant_types": ["authorization_code", "refresh_token"],
                 "response_types": ["code"],
                 "token_endpoint_auth_method": "none",
+                "scope": "openid offline_access all",
             },
         )
         if resp.status_code not in (200, 201):
@@ -80,6 +81,7 @@ def _build_authorization_url(
         "code_challenge": code_challenge,
         "code_challenge_method": "S256",
         "state": state,
+        "prompt": "consent",
     }
     return f"{AUTHORIZATION_URL}?{urlencode(params)}"
 
@@ -167,6 +169,7 @@ def _exchange_code(
                 "redirect_uri": REDIRECT_URI,
                 "client_id": client_id,
                 "code_verifier": code_verifier,
+                "scope": "openid offline_access all",
             },
         )
         if resp.status_code != 200:
@@ -174,9 +177,11 @@ def _exchange_code(
                 f"Token exchange failed ({resp.status_code}): {resp.text}"
             )
         data = resp.json()
+        print(f"  Token response keys: {list(data.keys())}")
         access_token = data["access_token"]
         refresh_token = data.get("refresh_token")
         if not refresh_token:
+            print(f"  Full response (redacted tokens): { {k: (v[:20] + '...' if isinstance(v, str) and len(v) > 20 else v) for k, v in data.items()} }")
             raise RuntimeError(
                 "No refresh_token in response. "
                 "Ensure 'offline_access' scope was granted."
