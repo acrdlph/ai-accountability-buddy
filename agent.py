@@ -192,7 +192,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     # Stage 2: Voice agent with custom Habitify tools (fresh MCP connection per call)
     session = AgentSession(
-        llm=openai.realtime.RealtimeModel(voice="shimmer"),
+        llm=openai.realtime.RealtimeModel(model="gpt-realtime-1.5", voice="marin"),
         max_tool_steps=10,
     )
 
