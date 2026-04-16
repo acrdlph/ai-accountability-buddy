@@ -1,10 +1,11 @@
-# Accountability Buddy
+# Voice Accountability Buddy
 
 An AI voice agent that calls you every evening to review your habits. It pulls your real habit data from [Habitify](https://www.habitify.me/), has a natural voice conversation about what you did and didn't do, and logs completions back automatically.
 
 Built with [LiveKit Agents](https://docs.livekit.io/agents/), [OpenAI Realtime API](https://platform.openai.com/docs/guides/realtime), and [Habitify MCP](https://www.habitify.me/).
 
 > **Work in progress.** The core voice agent and Habitify integration are functional. However, the model still [misunderstands and makes tracking mistakes easily](https://x.com/AchillRudolph/status/2031506043964912089?s=20) - this will require some more prompt engineering. Scheduling and production deployment are still ahead. See the [Roadmap](#roadmap) for details.
+> For a more reliable AI tracking system, see [this repo](https://github.com/acrdlph/accountability-buddy).
 
 ## How It Works
 
